@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net"
 	"regexp"
 	"strings"
@@ -62,6 +63,57 @@ func GetFreeIPv4AddressInSubnet(subnet *net.IPNet, usedIPs []net.IP) (net.IP, er
 			binary.BigEndian.PutUint32(result, candidate)
 			return result, nil
 		}
+	}
+	return nil, fmt.Errorf("no free IP in subnet %s", subnet)
+}
+
+// GetFreeIPv6AddressInSubnet picks the highest usable IPv6 address in subnet that is
+// not present in usedIPs. It walks from the last address in the subnet down to
+// network+1 and returns the first free address.
+func GetFreeIPv6AddressInSubnet(subnet *net.IPNet, usedIPs []net.IP) (net.IP, error) {
+	if subnet == nil {
+		return nil, fmt.Errorf("subnet is nil")
+	}
+	ip := subnet.IP.To16()
+	if ip == nil || subnet.IP.To4() != nil {
+		return nil, fmt.Errorf("only IPv6 subnets are supported")
+	}
+	ones, bits := subnet.Mask.Size()
+	if bits != 128 {
+		return nil, fmt.Errorf("only IPv6 subnets are supported")
+	}
+	if ones > 126 {
+		return nil, fmt.Errorf("no free IP in subnet %s", subnet)
+	}
+
+	netBytes := make([]byte, 16)
+	copy(netBytes, ip)
+	for i := 0; i < 16; i++ {
+		netBytes[i] &= subnet.Mask[i]
+	}
+	netAddr := new(big.Int).SetBytes(netBytes)
+
+	hostBits := uint(128 - ones)
+	maxHost := new(big.Int).Lsh(big.NewInt(1), hostBits)
+	maxHost.Sub(maxHost, big.NewInt(1))
+
+	used := make(map[string]bool, len(usedIPs))
+	for _, u := range usedIPs {
+		if v6 := u.To16(); v6 != nil && u.To4() == nil {
+			used[string(v6)] = true
+		}
+	}
+
+	candidate := new(big.Int).Add(netAddr, maxHost)
+	one := big.NewInt(1)
+	for candidate.Cmp(netAddr) > 0 {
+		b := candidate.Bytes()
+		result := make(net.IP, 16)
+		copy(result[16-len(b):], b)
+		if !used[string(result)] {
+			return result, nil
+		}
+		candidate.Sub(candidate, one)
 	}
 	return nil, fmt.Errorf("no free IP in subnet %s", subnet)
 }

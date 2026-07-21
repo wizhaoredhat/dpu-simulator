@@ -137,6 +137,10 @@ type NetworkConfig struct {
 	// GatewaySubnet is the subnet used by simulated DPU gateway interfaces.
 	// It only applies to HostToDpu networks.
 	GatewaySubnet string `yaml:"gateway_subnet,omitempty"`
+	// GatewaySubnetV6 is the IPv6 subnet used for global addresses on
+	// simulated DPU gateway interfaces (eth0-0). It only applies to HostToDpu
+	// networks.
+	GatewaySubnetV6 string `yaml:"gateway_subnet_v6,omitempty"`
 	// MgmtPortVFsCount is the number of simulated VFs requested by
 	// ovnkube-node for default and primary UDN management ports. It only
 	// applies to HostToDpu networks.

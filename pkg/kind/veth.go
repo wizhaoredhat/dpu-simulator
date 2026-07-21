@@ -71,6 +71,15 @@ func (m *KindManager) CreateVethTopology(cmdExec platform.CommandExecutor, pairs
 		return err
 	}
 
+	var gatewaySubnetV6 *net.IPNet
+	var usedGatewayIPv6s []net.IP
+	if m.config.IsOffloadDPU() {
+		gatewaySubnetV6, err = parseIPv6CIDR(m.config.DPUHostGatewaySubnetV6())
+		if err != nil {
+			return fmt.Errorf("invalid DPU host gateway IPv6 subnet: %w", err)
+		}
+	}
+
 	for pairIdx, pair := range pairs {
 		log.Info("Setting up veth topology for pair %d: %s <-> %s (%d data channels)",
 			pairIdx, pair.HostNode, pair.DPUNode, numPairs)
@@ -100,6 +109,15 @@ func (m *KindManager) CreateVethTopology(cmdExec platform.CommandExecutor, pairs
 				return fmt.Errorf("failed to assign gateway veth IP for pair %d: %w", pairIdx, err)
 			}
 			usedGatewayIPs = append(usedGatewayIPs, gwIP)
+
+			gwIPv6, allocErr := network.GetFreeIPv6AddressInSubnet(gatewaySubnetV6, usedGatewayIPv6s)
+			if allocErr != nil {
+				return fmt.Errorf("failed to allocate gateway veth IPv6 for pair %d: %w", pairIdx, allocErr)
+			}
+			if err := assignDpuHostGatewayIP(hostContainerExec, pair.HostNode, gwIPv6, gatewaySubnetV6); err != nil {
+				return fmt.Errorf("failed to assign gateway veth IPv6 for pair %d: %w", pairIdx, err)
+			}
+			usedGatewayIPv6s = append(usedGatewayIPv6s, gwIPv6)
 		}
 	}
 
@@ -324,9 +342,9 @@ func getKindNodeNetworkCIDR(exec platform.CommandExecutor) (net.IP, *net.IPNet, 
 	return ip, ipNet, nil
 }
 
-// assignGatewayVethIP assigns gwIP to eth0-0 inside the host container. This
-// address is on the DPU gateway subnet, separate from the Kind/KAPI subnet on
-// eth0.
+// assignDpuHostGatewayIP assigns gwIP to eth0-0 inside the host container.
+// IPv4 addresses use the DPU gateway subnet (separate from the Kind/KAPI
+// subnet on eth0); IPv6 addresses use gateway_subnet_v6.
 func assignDpuHostGatewayIP(hostContainerExec platform.CommandExecutor, hostNode string, gwIP net.IP, subnet *net.IPNet) error {
 	ones, _ := subnet.Mask.Size()
 	gwCIDR := fmt.Sprintf("%s/%d", gwIP, ones)

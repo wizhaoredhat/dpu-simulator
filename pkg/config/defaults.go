@@ -13,6 +13,7 @@ const (
 	DefaultRegistryImage = "registry:2"
 
 	defaultDPUHostGatewaySubnet    = "172.30.0.0/24"
+	defaultDPUHostGatewaySubnetV6  = "fd00:172:30::/64"
 	defaultKindDPUGatewayNetwork   = "dpu-sim-gateway"
 	defaultKindDPUGatewayInterface = "eth1"
 )

@@ -109,6 +109,12 @@ func (c *Config) validateAndSetDefaults() error {
 			if err := validateIPv4CIDRCapacity(c.Networks[i].GatewaySubnet, c.kindDPUGatewaySubnetRequiredIPs()); err != nil {
 				errors = append(errors, fmt.Sprintf("networks[%d] (%s): 'gateway_subnet' must be a valid CIDR: %v", i, net.Name, err))
 			}
+			if c.Networks[i].GatewaySubnetV6 == "" {
+				c.Networks[i].GatewaySubnetV6 = defaultDPUHostGatewaySubnetV6
+			}
+			if err := validateIPv6CIDR(c.Networks[i].GatewaySubnetV6); err != nil {
+				errors = append(errors, fmt.Sprintf("networks[%d] (%s): 'gateway_subnet_v6' must be a valid IPv6 CIDR: %v", i, net.Name, err))
+			}
 			// One interface is the gateway (eth0-0); at least one must remain for pod VFs.
 			availableMgmtPortVFs := c.Networks[i].NumPairs - 2
 			if c.Networks[i].MgmtPortVFsCount > 0 && c.Networks[i].MgmtPortVFsCount > availableMgmtPortVFs {
@@ -144,6 +150,9 @@ func (c *Config) validateAndSetDefaults() error {
 			}
 			if net.GatewaySubnet != "" {
 				errors = append(errors, fmt.Sprintf("networks[%d] (%s): 'gateway_subnet' is not allowed for type %s", i, net.Name, net.Type))
+			}
+			if net.GatewaySubnetV6 != "" {
+				errors = append(errors, fmt.Sprintf("networks[%d] (%s): 'gateway_subnet_v6' is not allowed for type %s", i, net.Name, net.Type))
 			}
 			if c.Networks[i].Mode == "" {
 				c.Networks[i].Mode = "nat"
@@ -952,6 +961,16 @@ func (c *Config) DPUHostGatewaySubnet() string {
 		return defaultDPUHostGatewaySubnet
 	}
 	return net.GatewaySubnet
+}
+
+// DPUHostGatewaySubnetV6 returns the IPv6 subnet used for global addresses on
+// simulated DPU gateway interfaces (eth0-0).
+func (c *Config) DPUHostGatewaySubnetV6() string {
+	net := c.GetHostToDpuNetwork()
+	if net == nil || net.GatewaySubnetV6 == "" {
+		return defaultDPUHostGatewaySubnetV6
+	}
+	return net.GatewaySubnetV6
 }
 
 // DPUKindGatewayNetworkName returns the container network carrying simulated

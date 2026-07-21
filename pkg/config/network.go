@@ -20,6 +20,24 @@ func validateIPv4CIDR(cidr string) error {
 	return nil
 }
 
+func validateIPv6CIDR(cidr string) error {
+	_, subnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return err
+	}
+	if subnet.IP.To4() != nil || subnet.IP.To16() == nil {
+		return fmt.Errorf("%s is not an IPv6 subnet", cidr)
+	}
+	ones, bits := subnet.Mask.Size()
+	if bits != 128 {
+		return fmt.Errorf("%s is not an IPv6 subnet", cidr)
+	}
+	if ones > 126 {
+		return fmt.Errorf("%s does not have enough usable IPv6 addresses", cidr)
+	}
+	return nil
+}
+
 func validateIPv4CIDRCapacity(cidr string, requiredUsableIPs int) error {
 	if err := validateIPv4CIDR(cidr); err != nil {
 		return err

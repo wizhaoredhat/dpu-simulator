@@ -342,6 +342,33 @@ func TestDPUHostGatewaySubnet(t *testing.T) {
 	}
 }
 
+func TestDPUHostGatewaySubnetV6(t *testing.T) {
+	tests := []struct {
+		name     string
+		network  NetworkConfig
+		expected string
+	}{
+		{
+			name:     "defaults gateway subnet v6",
+			network:  NetworkConfig{Name: "host-to-dpu", Type: HostToDpuNetworkType, NumPairs: 16},
+			expected: "fd00:172:30::/64",
+		},
+		{
+			name:     "uses configured gateway subnet v6",
+			network:  NetworkConfig{Name: "host-to-dpu", Type: HostToDpuNetworkType, NumPairs: 16, GatewaySubnetV6: "fd00:dead:beef::/64"},
+			expected: "fd00:dead:beef::/64",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{Networks: []NetworkConfig{tt.network}}
+			require.NoError(t, cfg.validateAndSetDefaults())
+			assert.Equal(t, tt.expected, cfg.DPUHostGatewaySubnetV6())
+		})
+	}
+}
+
 func TestValidateHostToDpuGatewaySubnet(t *testing.T) {
 	cfg := Config{
 		Networks: []NetworkConfig{
@@ -352,6 +379,18 @@ func TestValidateHostToDpuGatewaySubnet(t *testing.T) {
 	err := cfg.validateAndSetDefaults()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "gateway_subnet")
+}
+
+func TestValidateHostToDpuGatewaySubnetV6(t *testing.T) {
+	cfg := Config{
+		Networks: []NetworkConfig{
+			{Name: "host-to-dpu", Type: HostToDpuNetworkType, NumPairs: 4, GatewaySubnetV6: "172.30.0.0/24"},
+		},
+	}
+
+	err := cfg.validateAndSetDefaults()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gateway_subnet_v6")
 }
 
 func TestValidateHostToDpuGatewaySubnetCapacity(t *testing.T) {

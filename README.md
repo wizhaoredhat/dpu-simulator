@@ -249,6 +249,7 @@ Every network needs **`name`** and **`type`**. **`nic_model`** defaults to **`vi
 | `num_pairs` | Recommended | `1` if omitted or ≤ 0 | Number of parallel host–DPU links per pair (libvirt/OVS in VM mode) |
 | `mgmt_port_vfs_count` | No | `min(2, num_pairs-2)` (floored at `0`) | Management-port VFs (`eth0-1`…`eth0-N`); `eth0-0` is gateway-only and not in device plugin pools (`offload_dpu: true` requires at least 1 Pod pseudo-VF) |
 | `gateway_subnet` | No | `172.30.0.0/24` | IPv4 subnet for gateway addresses on `eth0-0` |
+| `gateway_subnet_v6` | No | `fd00:172:30::/64` | IPv6 subnet for global addresses on `eth0-0` (address-only) |
 | `nic_model` | No | `virtio` | `virtio` is recommended |
 | `bridge_name`, `gateway`, `subnet_mask`, `dhcp_start`, `dhcp_end`, `mode`, `use_ovs`, `attach_to` | - | - | Must **not** be set (will result in validation error) |
 
@@ -523,6 +524,7 @@ Validation uses the **same rules** as VM mode. Typical Kind-only configs list on
 | `num_pairs` | Recommended | `1` if omitted or ≤ 0 | Parallel data channels per host–DPU pair (`eth0-0` … `eth0-(num_pairs-1)`) |
 | `mgmt_port_vfs_count` | No | `min(2, num_pairs-2)` (floored at `0`) | Management-port VFs (`eth0-1`…`eth0-N`); `eth0-0` is gateway-only and not in device plugin pools (`offload_dpu: true` requires at least 1 Pod pseudo-VF) |
 | `gateway_subnet` | No | `172.30.0.0/24` | IPv4 subnet for gateway addresses on `eth0-0` when `offload_dpu` is enabled |
+| `gateway_subnet_v6` | No | `fd00:172:30::/64` | IPv6 subnet for global addresses on `eth0-0` when `offload_dpu` is enabled (address-only) |
 | `nic_model`, `bridge_name`, `gateway`, `subnet_mask`, `dhcp_start`, `dhcp_end`, `mode`, `use_ovs`, `attach_to` | - | - | Must **not** be set |
 
 #### Kind Nodes (`kind.nodes`)

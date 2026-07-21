@@ -423,10 +423,11 @@ func (m *VMManager) SetupAllK8sClusters() error {
 	return nil
 }
 
-// AssignDpuHostGatewayIPs SSHes into each DPU Host VM and assigns a gateway
-// IP to eth0-0 so OVN-Kubernetes DPU Host mode can find an IPv4 address on the
-// gateway interface. IPs are allocated from the top of the k8s subnet, skipping
-// all IPs already used by VMs or the network gateway.
+// AssignDpuHostGatewayIPs SSHes into each DPU Host VM and assigns gateway
+// IPs to eth0-0 so OVN-Kubernetes DPU Host mode can find addresses on the
+// gateway interface. IPv4 addresses are allocated from the top of the k8s
+// subnet, skipping all IPs already used by VMs or the network gateway. IPv6
+// global addresses are allocated from gateway_subnet_v6.
 func (m *VMManager) AssignDpuHostGatewayIPs() error {
 	if !m.config.IsOffloadDPU() {
 		return nil
@@ -447,6 +448,11 @@ func (m *VMManager) AssignDpuHostGatewayIPs() error {
 		return err
 	}
 
+	_, subnetV6, err := net.ParseCIDR(m.config.DPUHostGatewaySubnetV6())
+	if err != nil {
+		return fmt.Errorf("invalid DPU host gateway IPv6 subnet: %w", err)
+	}
+
 	var usedIPs []net.IP
 	if gw := net.ParseIP(k8sNet.Gateway); gw != nil {
 		usedIPs = append(usedIPs, gw)
@@ -456,6 +462,7 @@ func (m *VMManager) AssignDpuHostGatewayIPs() error {
 			usedIPs = append(usedIPs, ip)
 		}
 	}
+	var usedIPv6s []net.IP
 
 	gwIf := fmt.Sprintf(network.HostDataIfFmt, 0)
 
@@ -487,6 +494,20 @@ func (m *VMManager) AssignDpuHostGatewayIPs() error {
 		}
 
 		log.Info("Assigned %s to %s on %s", gwCIDR, gwIf, pair.HostNode)
+
+		gwIPv6, err := network.GetFreeIPv6AddressInSubnet(subnetV6, usedIPv6s)
+		if err != nil {
+			return fmt.Errorf("no free IPv6 for %s: %w", pair.HostNode, err)
+		}
+		usedIPv6s = append(usedIPv6s, gwIPv6)
+
+		ones, _ := subnetV6.Mask.Size()
+		gwCIDRv6 := fmt.Sprintf("%s/%d", gwIPv6, ones)
+		if err := sshExec.RunCmd(log.LevelDebug, "ip", "addr", "add", gwCIDRv6, "dev", gwIf, "noprefixroute"); err != nil {
+			return fmt.Errorf("failed to assign %s to %s on %s: %w", gwCIDRv6, gwIf, pair.HostNode, err)
+		}
+
+		log.Info("Assigned %s to %s on %s", gwCIDRv6, gwIf, pair.HostNode)
 	}
 
 	return nil

@@ -3,9 +3,11 @@ package network
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGenerateBridgeName(t *testing.T) {
@@ -312,4 +314,27 @@ func TestFindInterfaceByIP(t *testing.T) {
 	// Test IP not found
 	found = findByIP("10.10.10.10")
 	assert.Nil(t, found)
+}
+
+func TestGetFreeIPv6AddressInSubnet(t *testing.T) {
+	_, subnet, err := net.ParseCIDR("fd00:172:30::/64")
+	require.NoError(t, err)
+
+	ip, err := GetFreeIPv6AddressInSubnet(subnet, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "fd00:172:30:0:ffff:ffff:ffff:ffff", ip.String())
+
+	ip2, err := GetFreeIPv6AddressInSubnet(subnet, []net.IP{ip})
+	require.NoError(t, err)
+	assert.Equal(t, "fd00:172:30:0:ffff:ffff:ffff:fffe", ip2.String())
+
+	_, v4subnet, err := net.ParseCIDR("172.30.0.0/24")
+	require.NoError(t, err)
+	_, err = GetFreeIPv6AddressInSubnet(v4subnet, nil)
+	require.Error(t, err)
+
+	_, tiny, err := net.ParseCIDR("fd00::/127")
+	require.NoError(t, err)
+	_, err = GetFreeIPv6AddressInSubnet(tiny, nil)
+	require.Error(t, err)
 }
