@@ -1,7 +1,8 @@
 # dpu-simulator interactive website
 
-A static, offline-capable booth introduction to DPU offload. The five-part tour
-compares conventional networking with DPU offload, explains the Kind/VM topology,
+A static, offline-capable booth introduction to DPU offload. The six-part tour
+compares conventional networking with DPU offload, maps a representative
+BlueField-3 deployment to Kind, explains the Kind/VM topology,
 and finishes with a copyable Kind quickstart. Presenter profiles identify
 William Zhao (Red Hat) and Tim Rozet (NVIDIA).
 
@@ -108,8 +109,11 @@ and `VITE_PUBLIC_URL` consistent between build and test when overriding defaults
 - `src/content.ts`: chapter names, explanations, glossary, quickstart, public URL.
 - `src/Topology.tsx`: grouped host/DPU architecture and selection details.
 - `src/PacketJourney.tsx`: conceptual packet path and playback state.
+- `src/HardwareComparison.tsx` / `src/hardwareContent.ts`: linked BlueField-3/Kind
+  diagrams, interface purposes, reservations, and sources.
 - `src/App.tsx`: tour shell, presenter profiles, share and glossary dialogs.
 - `src/styles.css` / `src/tokens.css`: layouts and visual design.
+- `src/hardware.css`: hardware chapter and responsive comparison layout.
 - `SOURCES.md`: implementation references, CI evidence, and modeling boundaries.
 - `public/brands/NOTICE.md`: provenance of locally bundled company logos.
 

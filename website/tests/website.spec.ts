@@ -96,6 +96,87 @@ test('dialogs support keyboard dismissal, public QR destination, and presenter a
   await page.keyboard.press('Escape');
 });
 
+test('hardware chapter fits the guided tour and preserves exploration return', async ({ page }) => {
+  await page.goto('./#offload');
+  await page
+    .locator('.tour-pager')
+    .getByRole('button', { name: 'Real hardware', exact: true })
+    .click();
+  await expect(page).toHaveURL(/#hardware$/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    'Real hardware. Familiar roles.',
+  );
+  await expect(page.locator('.tour-pager')).toContainText('4 of 6');
+  await page.getByRole('button', { name: 'Explore topology', exact: true }).click();
+  await page.getByRole('button', { name: 'Return to your tour' }).click();
+  await expect(page).toHaveURL(/#hardware$/);
+  await page
+    .locator('.tour-pager')
+    .getByRole('button', { name: 'In your lab', exact: true })
+    .click();
+  await expect(page).toHaveURL(/#lab$/);
+  await page.getByRole('button', { name: 'Compare with BlueField-3' }).click();
+  await expect(page).toHaveURL(/#hardware$/);
+});
+
+test('hardware and simulation link interface roles and distinguish management from gateways', async ({
+  page,
+}) => {
+  await page.goto('./#hardware');
+  const explanation = page.getByRole('region', { name: 'Selected interface explanation' });
+  const management = page.getByRole('button', {
+    name: 'BlueField-3: OVN management host interface',
+    exact: true,
+  });
+  await management.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByRole('button', { name: 'Kind: OVN management host interface', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(
+    page.getByRole('button', { name: 'Kind: OVN management DPU interface', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(explanation).toContainText('baseline uses eth0-1');
+  await explanation.getByText('Names, behavior, and sources', { exact: true }).click();
+  await expect(explanation).toContainText('not eight active management ports');
+  await page.getByRole('button', { name: 'Kind: Host gateway DPU interface', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'BlueField-3: Host gateway host interface', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(explanation).toContainText('eth0-0 ↔ rep0-0');
+  await expect(explanation).toContainText('pf0hpf');
+  await page.getByRole('button', { name: 'BlueField-3: Device management', exact: true }).click();
+  await expect(explanation).toContainText('oob_net0');
+  await expect(explanation).toContainText('does not emulate');
+  await page
+    .getByRole('group', { name: 'Explore interface roles' })
+    .getByRole('button', { name: 'Network uplink', exact: true })
+    .click();
+  await expect(explanation).toContainText('eth1');
+  await expect(explanation).toContainText('p0');
+});
+
+test('interface budget separates reserved capacity from configured paths', async ({ page }) => {
+  await page.goto('./#hardware');
+  const budget = page.getByRole('region', { name: '128 connections. Four jobs.' });
+  const explanation = page.getByRole('region', { name: 'Selected interface explanation' });
+  await budget.getByRole('button', { name: /UDN Uplink/ }).click();
+  await expect(explanation).toContainText('Reservation alone does not create a working Uplink');
+  await expect(
+    page.getByRole('button', { name: 'BlueField-3: UDN Uplink host interface', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(budget.getByRole('button', { name: /Workloads/ })).toContainText('118');
+  await expect(budget).toContainText('outside these 128 pairs');
+  await budget.getByRole('button', { name: /Workloads/ }).click();
+  await expect(explanation).toContainText('dpusim.io/vf');
+  await page
+    .getByRole('group', { name: 'Explore interface roles' })
+    .getByRole('button', { name: 'Networking control' })
+    .click();
+  await expect(explanation).toContainText('--simulate-dpu');
+  await expect(explanation).toContainText('OVS forwards packets in software');
+});
+
 test('quickstart commands copy correctly and skip navigation preserves the chapter', async ({
   page,
   context,
@@ -119,7 +200,7 @@ test('mobile layouts remain within the viewport and reduced motion keeps a stati
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  for (const chapter of ['welcome', 'networking', 'offload', 'lab', 'quickstart']) {
+  for (const chapter of ['welcome', 'networking', 'offload', 'hardware', 'lab', 'quickstart']) {
     await page.goto(`./#${chapter}`);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     expect(
@@ -162,6 +243,11 @@ test('production site and bundled assets load with external traffic blocked', as
   await expect(page.locator('.journey-status h3')).toHaveText('Source networking');
   await page.getByRole('button', { name: 'Explore topology', exact: true }).click();
   await page.getByRole('button', { name: 'VMs', exact: true }).click();
+  await page.getByRole('button', { name: 'Compare with BlueField-3' }).click();
+  await page
+    .getByRole('button', { name: 'Kind: Host gateway host interface', exact: true })
+    .click();
+  await expect(page.locator('.hardware-explanation')).toContainText('eth0-0 ↔ rep0-0');
   await page.getByRole('button', { name: 'Quickstart', exact: true }).click();
   await expect(page.locator('.quickstart-step')).toHaveCount(5);
   expect(external).toEqual([]);

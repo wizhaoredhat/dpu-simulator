@@ -19,6 +19,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import Topology from './Topology';
 import PacketJourney from './PacketJourney';
 import Quickstart from './Quickstart';
+import HardwareComparison from './HardwareComparison';
 import { chapters, glossary, PUBLIC_URL, REPO, type Chapter } from './content';
 
 const base = import.meta.env.BASE_URL;
@@ -142,7 +143,9 @@ export default function App() {
           <nav className="main-nav" aria-label="Main navigation">
             <button
               className={
-                !returnTo && ['welcome', 'networking', 'offload'].includes(chapter) ? 'active' : ''
+                !returnTo && ['welcome', 'networking', 'offload', 'hardware'].includes(chapter)
+                  ? 'active'
+                  : ''
               }
               onClick={() => navigate('welcome')}
             >
@@ -227,7 +230,7 @@ export default function App() {
                 </div>
                 <div className="tour-meta">
                   <span>
-                    <Clock3 size={15} /> About 3 minutes
+                    <Clock3 size={15} /> About 4 minutes
                   </span>
                   <span>No DPU experience needed</span>
                 </div>
@@ -310,10 +313,26 @@ export default function App() {
           </>
         )}
 
+        {chapter === 'hardware' && (
+          <>
+            <div className="page-heading">
+              <span className="eyebrow">03 / CONNECT THE MODEL TO THE MACHINE</span>
+              <h1 ref={heading} tabIndex={-1}>
+                Real hardware. Familiar roles.
+              </h1>
+              <p>
+                A BlueField-3 gives networking its own processor and hardware switch. See how
+                dpu-simulator recreates the connections and the OVN-Kubernetes split in Kind.
+              </p>
+            </div>
+            <HardwareComparison />
+          </>
+        )}
+
         {chapter === 'lab' && (
           <>
             <div className="page-heading">
-              <span className="eyebrow">03 / BRING IT INTO SOFTWARE</span>
+              <span className="eyebrow">04 / BRING IT INTO SOFTWARE</span>
               <h1 ref={heading} tabIndex={-1}>
                 Two clusters. One place to experiment.
               </h1>
@@ -370,6 +389,9 @@ export default function App() {
                 <button className="text-button" onClick={() => setModal('glossary')}>
                   <BookOpen size={17} /> Decode the terminology <ArrowRight size={16} />
                 </button>
+                <button className="text-button" onClick={() => navigate('hardware')}>
+                  <Cpu size={17} /> Compare with BlueField-3 <ArrowRight size={16} />
+                </button>
               </aside>
             </div>
           </>
@@ -378,7 +400,7 @@ export default function App() {
         {chapter === 'quickstart' && (
           <>
             <div className="page-heading">
-              <span className="eyebrow">04 / YOUR TURN</span>
+              <span className="eyebrow">05 / YOUR TURN</span>
               <h1 ref={heading} tabIndex={-1}>
                 Bring up your own DPU lab.
               </h1>

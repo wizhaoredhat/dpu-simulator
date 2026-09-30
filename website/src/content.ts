@@ -5,6 +5,7 @@ export const chapters = [
   { id: 'welcome', label: 'The idea', short: 'Start here' },
   { id: 'networking', label: 'On the host', short: 'Conventional' },
   { id: 'offload', label: 'On the DPU', short: 'DPU offload' },
+  { id: 'hardware', label: 'Real hardware', short: 'BlueField → Kind' },
   { id: 'lab', label: 'In your lab', short: 'The simulator' },
   { id: 'quickstart', label: 'Try it yourself', short: 'Quickstart' },
 ] as const;

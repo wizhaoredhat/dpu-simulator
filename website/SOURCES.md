@@ -14,6 +14,10 @@
 - `../pkg/cni/ovn_kubernetes.go` and `../pkg/cni/helm_values.go`: selecting
   full/DPU-host/DPU modes, OVS external IDs, and networking installation.
 - `../pkg/vm/network.go`: virtualized host-to-DPU links.
+- `../pkg/deviceplugin/device_plugin.go`: management/workload resource pools;
+  exclusion of the gateway and reserved Uplink interfaces.
+- `../lib/dpusim/constants.go`: gateway and management interface names.
+- `../pkg/config/defaults.go`: DPU gateway network and `eth1` defaults.
 - `../cmd/dpu-sim/main.go`: deploy flags and cleanup behavior.
 - `../cmd/dpu-sim/tft.go`: virtual environment setup and traffic tests.
 - `../go.mod`: Go build version.
@@ -22,6 +26,41 @@
 
 - [OVN-Kubernetes DPU support](https://ovn-kubernetes.io/master/features/hardware-offload/dpu-support/)
 - [DPU gateway interface configuration](https://ovn-kubernetes.io/features/hardware-offload/dpu-gateway-interface/)
+- [Launching OVN-Kubernetes with DPU acceleration](https://ovn-kubernetes.io/master/installation/launching-ovn-kubernetes-with-dpu/):
+  management VF pools, per-network management ports, and host-PF/gateway-bridge example.
+- [Uplinks for user-defined networks](https://ovn-kubernetes.io/master/features/user-defined-networks/uplinks/):
+  host-side discovery and DPU-side bridge resolution; separate Uplink provisioning.
+- [NVIDIA BlueField representor model](https://networking-docs.nvidia.com/bsp/453/kernel-representors-model):
+  host PF/VF representors, `p0`, and embedded-switch offload versus software forwarding.
+- [NVIDIA BlueField OOB interface](https://networking-docs.nvidia.com/bsp/4131/bluefield-oob-ethernet-interface):
+  `oob_net0` access to the Arm OS, separate from host/workload interfaces.
+
+## BlueField-3 comparison
+
+The hardware chapter is a representative BlueField-3 in DPU mode using the
+PF/VF representor model, aligned with the simulator's two-cluster deployment.
+It is an architecture illustration, not a tested hardware installation recipe.
+One host/DPU pair and one physical port are expanded. VF numbering, physical
+cabling, management access, and bridge layouts vary across installations.
+
+Dashed host-to-representor lines show correspondence, not the offloaded packet
+path. The software block programs forwarding; the embedded switch carries
+eligible offloaded flows. A separate caption states the direct hardware path.
+The simulation uses real software forwarding and simulated device discovery;
+it does not emulate PCIe, the BlueField processor, firmware, or performance.
+
+The Kind example reserves index 0 for the host gateway, 1–8 for OVN management,
+and 9 for a future Uplink, leaving 10–127 (118 interfaces) for workloads.
+Management pool capacity does not imply eight active ports. The baseline names
+`eth0-1` explicitly; UDN configurations may allocate from `dpusim.io/mgmtvf`.
+A reserved Uplink still requires bridge/network provisioning and API resources.
+Kind `eth0` and DPU `eth1` are outside the 128 host-to-DPU pairs. The VM example
+instead has 16 pairs, three management reservations, and no Uplink reservation.
+
+Hardware device administration via `oob_net0` is compared with the lab's Kind
+node/API connection only by purpose; Kind does not reproduce OOB or BMC hardware.
+The host gateway PF and its `pf0hpf` representor are distinguished from the
+physical uplink (`p0` in the software view) and the OVN management VFs.
 
 ## CI used as implementation evidence
 
@@ -41,8 +80,8 @@ claim. Raw logs and their environment-specific addresses are not bundled.
 The selected demo has two Kubernetes clusters. A control-plane node is shown
 for each; it is not part of the animated workload packet path. The DPU-side OVN
 components also access host-cluster resources. To limit clutter, management
-connections are explained in the inspector instead of drawn alongside the data
-path.
+connections in the lab overview are explained in the inspector. The hardware
+chapter expands gateway, OVN management, and device-management roles separately.
 
 In Kind offload mode, the DPU workers also attach to a dedicated gateway bridge
 network. Addresses on that network supply their OVN encapsulation IPs. The Kind
