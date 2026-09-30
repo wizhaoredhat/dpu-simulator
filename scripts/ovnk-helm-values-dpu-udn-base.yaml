@@ -1,0 +1,30 @@
+# Base Helm values for OVN-Kubernetes DPU cluster with UDN / network segmentation.
+# Use with dpu-sim generated values as the final -f file.
+#
+# Installs ovnkube-single-node-zone-dpu (local OVN DB on each DPU node).
+# ovnkube-node-dpu omits local DB containers and is not suitable for Kind sim.
+
+tags:
+  ovs-node: false
+  ovn-ipsec: false
+  ovnkube-node: false
+  ovnkube-control-plane: false
+  ovnkube-node-dpu-host: false
+  ovnkube-node-dpu: false
+  ovnkube-single-node-zone: false
+  ovnkube-single-node-zone-dpu: true
+
+mtu: 1400
+
+global:
+  enableNetworkSegmentation: true
+  enableOvnKubeIdentity: false
+  # ovnkube-node-dpu chart reads pullPolicy from global.image (not dpuImage).
+  image:
+    pullPolicy: IfNotPresent
+
+monitoring:
+  enableServiceMonitor: false
+  enablePrometheusRule: false
+  commonServiceMonitorSelectorLabels:
+    release: kube-prometheus-stack

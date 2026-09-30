@@ -1,0 +1,39 @@
+# Base Helm values for OVN-Kubernetes DPU-host cluster with UDN / network segmentation.
+# Use with dpu-sim generated values as the final -f file.
+#
+# Installs ovnkube-control-plane + ovnkube-single-node-zone (control plane /
+# non-dpu-host nodes, no management port) + ovnkube-node-dpu-host (dpu-host
+# workers with management-port VF allocation).
+
+tags:
+  ovn-ipsec: false
+  ovnkube-node: false
+  ovnkube-node-dpu: false
+  ovnkube-single-node-zone: true
+  ovnkube-single-node-zone-dpu: false
+  ovnkube-node-dpu-host: true
+  ovnkube-control-plane: true
+  ovs-node: false
+
+mtu: 1400
+
+global:
+  enableNetworkSegmentation: true
+  enableOvnKubeIdentity: false
+  enablePersistentIPs: false
+  enableAdminNetworkPolicy: true
+  enableEgressIp: true
+  egressIpHealthCheckPort: 9107
+  enableEgressFirewall: true
+  enableEgressQos: true
+  enableEgressService: true
+  enableMultiExternalGateway: true
+
+# OVN DB stack on control-plane / non-dpu-host nodes must not request mgmt VFs.
+ovnkube-single-node-zone:
+  mgmtPortVFResourceName: ""
+  nodeMgmtPortNetdev: ""
+
+monitoring:
+  enableServiceMonitor: false
+  enablePrometheusRule: false

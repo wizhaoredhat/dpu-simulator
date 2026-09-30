@@ -1,0 +1,63 @@
+diff --git a/pkg/containerengine/docker.go b/pkg/containerengine/docker.go
+index b3c5d6d..b99bcc9 100644
+--- a/pkg/containerengine/docker.go
++++ b/pkg/containerengine/docker.go
+@@ -70,14 +70,24 @@ func (e *DockerEngine) isAllowedInsecureRegistry(registry string) (bool, error)
+ 		}
+ 	}
+ 
+-	ip := net.ParseIP(strings.Trim(targetHost, "[]"))
++	ips := []net.IP{}
++	if ip := net.ParseIP(strings.Trim(targetHost, "[]")); ip != nil {
++		ips = append(ips, ip)
++	}
++	if strings.EqualFold(targetHost, "localhost") {
++		// Docker commonly defaults to 127.0.0.0/8 in InsecureRegistryCIDRs.
++		// Treat localhost as loopback so this pre-check matches daemon behavior.
++		ips = append(ips, net.ParseIP("127.0.0.1"), net.ParseIP("::1"))
++	}
+ 	for _, cidr := range cfg.InsecureRegistryCIDRs {
+ 		_, network, err := net.ParseCIDR(cidr)
+ 		if err != nil {
+ 			continue
+ 		}
+-		if ip != nil && network.Contains(ip) {
+-			return true, nil
++		for _, ip := range ips {
++			if ip != nil && network.Contains(ip) {
++				return true, nil
++			}
+ 		}
+ 	}
+ 
+diff --git a/pkg/containerengine/engine_test.go b/pkg/containerengine/engine_test.go
+index c66ec15..1fa8e67 100644
+--- a/pkg/containerengine/engine_test.go
++++ b/pkg/containerengine/engine_test.go
+@@ -287,6 +287,26 @@ func TestDockerPushInsecureAllowedByCIDRPushes(t *testing.T) {
+ 	}
+ }
+ 
++func TestDockerPushInsecureLocalhostAllowedByLoopbackCIDR(t *testing.T) {
++	fx := &fakeExecutor{}
++	fx.execByCmd = map[string]execResult{
++		"docker info --format '{{json .RegistryConfig}}'": {
++			stdout: `{"IndexConfigs":{"docker.io":{"Secure":true}},"InsecureRegistryCIDRs":["127.0.0.0/8"]}`,
++		},
++	}
++	e := NewDockerEngine(fx)
++
++	err := e.Push(context.Background(), "localhost:5000/test:v1", PushOptions{Insecure: true})
++	if err != nil {
++		t.Fatalf("expected no error, got: %v", err)
++	}
++
++	want := []runCmdCall{{name: "docker", args: []string{"push", "localhost:5000/test:v1"}}}
++	if !reflect.DeepEqual(fx.runCalls, want) {
++		t.Fatalf("run calls mismatch\n got: %#v\nwant: %#v", fx.runCalls, want)
++	}
++}
++
+ func TestRunContainerCommand(t *testing.T) {
+ 	fx := &fakeExecutor{}
+ 	e := NewPodmanEngine(fx)
