@@ -12,8 +12,6 @@ import (
 	"github.com/ovn-kubernetes/dpu-simulator/pkg/k8s"
 	"github.com/ovn-kubernetes/dpu-simulator/pkg/log"
 	"github.com/ovn-kubernetes/dpu-simulator/pkg/platform"
-
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -197,51 +195,22 @@ func Run(cmdExec platform.CommandExecutor, cfg *config.Config, dpuSimConfigPath 
 		return fmt.Errorf("tft python: %w", err)
 	}
 
-	var tftYAML string
-
-	if strings.TrimSpace(opts.TFTConfig) != "" {
-		tftYAML, err = filepath.Abs(opts.TFTConfig)
-		if err != nil {
-			return fmt.Errorf("tft config path: %w", err)
-		}
-		if _, err := os.Stat(tftYAML); err != nil {
-			return fmt.Errorf("tft config file: %w", err)
-		}
-	} else {
-		if !HasEmbeddedTFT(cfg) {
-			return fmt.Errorf("no tft: in dpu-sim config; pass --tft-config or add tft: to the YAML")
-		}
-		kc, err := ResolveKubeconfigPath(cfg, dpuSimConfigPath, opts.Cluster)
-		if err != nil {
-			return err
-		}
-		f, err := os.CreateTemp("", "dpu-sim-tft-*.yaml")
-		if err != nil {
-			return fmt.Errorf("temp tft config: %w", err)
-		}
-		tftYAML = f.Name()
-		defer func() { _ = os.Remove(tftYAML) }()
-
-		enc := yaml.NewEncoder(f)
-		enc.SetIndent(2)
-		emit := struct {
-			TFT        *yaml.Node `yaml:"tft"`
-			Kubeconfig string     `yaml:"kubeconfig,omitempty"`
-		}{
-			TFT:        cfg.TFT.Node(),
-			Kubeconfig: kc,
-		}
-		if err := enc.Encode(&emit); err != nil {
-			_ = f.Close()
-			return fmt.Errorf("marshal tft config: %w", err)
-		}
-		if err := enc.Close(); err != nil {
-			_ = f.Close()
-			return fmt.Errorf("finalize tft config encoder: %w", err)
-		}
-		if err := f.Close(); err != nil {
-			return fmt.Errorf("close tft config file: %w", err)
-		}
+	data, err := prepareTFTConfig(cfg, dpuSimConfigPath, opts)
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp("", "dpu-sim-tft-*.yaml")
+	if err != nil {
+		return fmt.Errorf("temp tft config: %w", err)
+	}
+	tftYAML := f.Name()
+	defer func() { _ = os.Remove(tftYAML) }()
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
 	}
 
 	log.Info("Running kubernetes-traffic-flow-tests from %s", repo)
