@@ -106,7 +106,7 @@ func (c *Config) validateAndSetDefaults() error {
 			if c.Networks[i].GatewaySubnet == "" {
 				c.Networks[i].GatewaySubnet = defaultDPUHostGatewaySubnet
 			}
-			if err := validateIPv4CIDRCapacity(c.Networks[i].GatewaySubnet, c.kindDPUGatewaySubnetRequiredIPs()); err != nil {
+			if err := validateIPv4CIDRCapacity(c.Networks[i].GatewaySubnet, c.dpuGatewaySubnetRequiredIPs()); err != nil {
 				errors = append(errors, fmt.Sprintf("networks[%d] (%s): 'gateway_subnet' must be a valid CIDR: %v", i, net.Name, err))
 			}
 			// One interface is the gateway (eth0-0); at least one must remain for pod VFs.
@@ -171,6 +171,12 @@ func (c *Config) validateAndSetDefaults() error {
 			if c.Networks[i].AttachTo == "" {
 				c.Networks[i].AttachTo = "any"
 			}
+		}
+	}
+
+	if c.IsVMMode() && c.IsOffloadDPU() {
+		if err := c.validateVMGateway(); err != nil {
+			errors = append(errors, err.Error())
 		}
 	}
 
@@ -985,15 +991,20 @@ func (c *Config) DPUHostUplinkInterfaces() []string {
 	return names
 }
 
-// DPUHostGatewaySubnet returns the subnet used for simulated DPU gateway
-// router addresses.
+// DPUHostGatewaySubnet is shared by the Kind and VM offload backends.
 func (c *Config) DPUHostGatewaySubnet() string {
-	net := c.GetHostToDpuNetwork()
-	if net == nil || net.GatewaySubnet == "" {
+	n := c.GetHostToDpuNetwork()
+	if n == nil || n.GatewaySubnet == "" {
 		return defaultDPUHostGatewaySubnet
 	}
-	return net.GatewaySubnet
+	return n.GatewaySubnet
 }
+
+// DPUGatewayNetworkName identifies the dedicated libvirt or container network.
+func (c *Config) DPUGatewayNetworkName() string { return defaultKindDPUGatewayNetwork }
+
+// DPUGatewayNextHop is the first usable address on the gateway network.
+func (c *Config) DPUGatewayNextHop() string { return c.DPUKindGatewayNextHop() }
 
 // DPUKindGatewayNetworkName returns the container network carrying simulated
 // DPU gateway traffic in Kind mode.
@@ -1016,13 +1027,13 @@ func (c *Config) DPUKindGatewayNextHop() string {
 	return nextHop.String()
 }
 
-// kindDPUGatewaySubnetRequiredIPs returns the minimum usable IPs needed by the
-// DPU gateway container network. Docker/Podman consumes the first usable IP for
+// dpuGatewaySubnetRequiredIPs returns the minimum usable IPs needed by the
+// DPU gateway network. The backend consumes the first usable IP for
 // the bridge gateway, each DPU node consumes one IP when it connects to the
 // gateway network, and each paired host node gets one veth IP from the same
 // subnet for OVN-Kubernetes gateway traffic.
-func (c *Config) kindDPUGatewaySubnetRequiredIPs() int {
-	if !c.IsKindMode() || !c.IsOffloadDPU() {
+func (c *Config) dpuGatewaySubnetRequiredIPs() int {
+	if !c.IsOffloadDPU() {
 		return 0
 	}
 	pairs := c.GetHostDPUPairs("")
@@ -1310,6 +1321,9 @@ func (c *Config) ClustersOrderedForInstall() []ClusterConfig {
 // daemonset on the given cluster.
 func (c *Config) GatewayInterfaces(clusterName string) string {
 	gatewayIf := K8sNetworkName
+	if c.IsVMMode() && c.IsOffloadDPU() && c.IsDPUCluster(clusterName) {
+		gatewayIf = VMGatewayInterface
+	}
 	if c.IsKindMode() {
 		gatewayIf = KindK8sNetworkName
 		if c.IsOffloadDPU() && c.IsDPUCluster(clusterName) {
@@ -1320,15 +1334,15 @@ func (c *Config) GatewayInterfaces(clusterName string) string {
 }
 
 // GatewayOpts returns the OVN-Kubernetes gateway options for the given
-// cluster. In Kind DPU mode, OVN's gateway interface is on the simulator
-// gateway network, and the DPU host gateway subnet tells ovnkube how to derive
-// gateway router addresses for paired host nodes. The gateway nexthop is the
-// container bridge gateway on that same subnet.
+// cluster. The DPU gateway subnet tells ovnkube how to derive gateway router
+// addresses for paired host nodes, on either the VM or Kind underlay.
 func (c *Config) GatewayOpts(clusterName string) string {
 	opts := fmt.Sprintf("--gateway-interface=%s", c.GatewayInterfaces(clusterName))
-	if c.IsKindMode() && c.IsOffloadDPU() && c.IsDPUCluster(clusterName) {
-		opts = fmt.Sprintf("%s --gateway-router-subnet=%s", opts, c.DPUHostGatewaySubnet())
-		if nextHop := c.DPUKindGatewayNextHop(); nextHop != "" {
+	if c.IsOffloadDPU() && c.IsDPUCluster(clusterName) {
+		if subnet := c.DPUHostGatewaySubnet(); subnet != "" {
+			opts = fmt.Sprintf("%s --gateway-router-subnet=%s", opts, subnet)
+		}
+		if nextHop := c.DPUGatewayNextHop(); nextHop != "" {
 			opts = fmt.Sprintf("%s --gateway-nexthop=%s", opts, nextHop)
 		}
 	}

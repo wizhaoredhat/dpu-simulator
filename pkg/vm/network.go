@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"encoding/xml"
 	"fmt"
 	"os"
 	"strings"
@@ -25,6 +26,27 @@ func (m *VMManager) NetworkExists(networkName string) bool {
 // CreateNetwork creates a libvirt network based on the configuration
 func (m *VMManager) CreateNetwork(netCfg config.NetworkConfig) error {
 	if m.NetworkExists(netCfg.Name) {
+		if netCfg.Type == config.VMGatewayInterface {
+			existing, err := m.conn.LookupNetworkByName(netCfg.Name)
+			if err != nil {
+				return err
+			}
+			defer existing.Free()
+			raw, err := existing.GetXMLDesc(0)
+			if err != nil {
+				return err
+			}
+			if err := validateGatewayNetworkXML(raw, netCfg); err != nil {
+				return err
+			}
+			active, err := existing.IsActive()
+			if err != nil {
+				return err
+			}
+			if !active {
+				return existing.Create()
+			}
+		}
 		// Keep network creation idempotent for repeated deploy/redeploy runs.
 		log.Info("Network %s already exists, skipping creation", netCfg.Name)
 		return nil
@@ -272,7 +294,7 @@ func (m *VMManager) generateNATNetworkXML(netCfg config.NetworkConfig) string {
 	sb.WriteString(fmt.Sprintf("  <ip address='%s' netmask='%s'>\n", netCfg.Gateway, netCfg.SubnetMask))
 
 	// K8s (ovn-network): no DHCP on the segment; VMs assign k8s interface IP manually
-	if netCfg.Type != config.K8sNetworkName {
+	if netCfg.Type != config.K8sNetworkName && netCfg.Type != config.VMGatewayInterface {
 		sb.WriteString("    <dhcp>\n")
 		if netCfg.DHCPStart != "" && netCfg.DHCPEnd != "" {
 			sb.WriteString(fmt.Sprintf("      <range start='%s' end='%s'/>\n", netCfg.DHCPStart, netCfg.DHCPEnd))
@@ -392,13 +414,17 @@ func (m *VMManager) CreateAllNetworks() error {
 	log.Info("=== Creating Networks ===")
 
 	// Create configured networks (skip HostToDpu which is handled below)
-	for _, netCfg := range m.config.Networks {
+	for _, netCfg := range m.config.VMNetworks() {
 		if netCfg.Type == config.HostToDpuNetworkType {
 			continue
 		}
 		if err := m.CreateNetwork(netCfg); err != nil {
 			return fmt.Errorf("failed to create network %s: %w", netCfg.Name, err)
 		}
+	}
+
+	if err := m.configureGatewayRouting(false); err != nil {
+		return err
 	}
 
 	// Create host-to-DPU network channels
@@ -452,8 +478,12 @@ func (m *VMManager) CleanupNetworks() error {
 
 	errors := make([]string, 0)
 
+	if err := m.configureGatewayRouting(true); err != nil {
+		return err
+	}
+
 	// Cleanup configured networks
-	for _, netCfg := range m.config.Networks {
+	for _, netCfg := range m.config.VMNetworks() {
 		netName := netCfg.Name
 		log.Debug("Cleaning up network: %s...", netName)
 
@@ -507,5 +537,29 @@ func (m *VMManager) CleanupNetworks() error {
 		return fmt.Errorf("cleanup networks errors: %s", strings.Join(errors, "; "))
 	}
 
+	return nil
+}
+
+// Refuse to silently reuse a gateway network left with a different address plan.
+func validateGatewayNetworkXML(raw string, want config.NetworkConfig) error {
+	var existing struct {
+		Bridge struct {
+			Name string `xml:"name,attr"`
+		} `xml:"bridge"`
+		Forward struct {
+			Mode string `xml:"mode,attr"`
+		} `xml:"forward"`
+		IP []struct {
+			Address string    `xml:"address,attr"`
+			Netmask string    `xml:"netmask,attr"`
+			DHCP    *struct{} `xml:"dhcp"`
+		} `xml:"ip"`
+	}
+	if err := xml.Unmarshal([]byte(raw), &existing); err != nil {
+		return err
+	}
+	if existing.Bridge.Name != want.BridgeName || existing.Forward.Mode != "nat" || len(existing.IP) != 1 || existing.IP[0].Address != want.Gateway || existing.IP[0].Netmask != want.SubnetMask || existing.IP[0].DHCP != nil {
+		return fmt.Errorf("existing gateway network %s differs from the configured topology; rebuild the deployment", want.Name)
+	}
 	return nil
 }

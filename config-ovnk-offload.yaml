@@ -32,8 +32,11 @@ networks:
 
   - name: "host-to-dpu-link"
     type: "HostToDpu"
-    num_pairs: 16
-    mgmt_port_vfs_count: 3
+    # Match Kind: gateway + 8 management + 1 Uplink + 118 pod devices.
+    gateway_subnet: "172.30.0.0/24"
+    num_pairs: 128
+    mgmt_port_vfs_count: 8
+    uplink_vfs_count: 1
     nic_model: "virtio"
 
 vms:
@@ -64,7 +67,7 @@ vms:
     k8s_node_mac: "52:54:00:00:01:12"
     k8s_node_ip: "192.168.123.12"
     memory: 2048  # MB
-    vcpus: 2
+    vcpus: 4  # IRQ capacity for 128 virtio host/DPU interfaces
     disk_size: 20  # GB
 
   - name: "dpu-1-1"
@@ -75,7 +78,7 @@ vms:
     k8s_node_ip: "192.168.123.22"
     host: "host-1-1"
     memory: 4096  # MB
-    vcpus: 2
+    vcpus: 4  # IRQ capacity for 128 virtio host/DPU interfaces
     disk_size: 20  # GB
 
   - name: "host-2-1"
@@ -85,7 +88,7 @@ vms:
     k8s_node_mac: "52:54:00:00:01:13"
     k8s_node_ip: "192.168.123.13"
     memory: 2048  # MB
-    vcpus: 2
+    vcpus: 4  # IRQ capacity for 128 virtio host/DPU interfaces
     disk_size: 20  # GB
 
   - name: "dpu-2-1"
@@ -96,7 +99,7 @@ vms:
     k8s_node_ip: "192.168.123.23"
     host: "host-2-1"
     memory: 4096  # MB
-    vcpus: 2
+    vcpus: 4  # IRQ capacity for 128 virtio host/DPU interfaces
     disk_size: 20  # GB
 
 operating_system:

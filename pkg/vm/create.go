@@ -74,10 +74,15 @@ func (m *VMManager) CreateVM(vmCfg config.VMConfig) error {
 func (m *VMManager) generateNetworkInterfaces(vmCfg config.VMConfig) string {
 	var sb strings.Builder
 
-	for _, network := range m.config.Networks {
+	for _, network := range m.config.VMNetworks() {
 		// AttachTo determines which type of VM the network should be attached to.
 		if network.AttachTo != "any" && network.AttachTo != vmCfg.Type {
 			continue
+		}
+		if network.Type == config.VMGatewayInterface {
+			if _, err := m.config.VMGatewayIP(vmCfg.Name); err != nil {
+				continue
+			}
 		}
 		mac := GenerateMACForNetwork(vmCfg.Name, network.Type)
 		if network.Type == config.K8sNetworkName && vmCfg.K8sNodeMAC != "" {
